@@ -14,12 +14,12 @@ from moviepy.editor import VideoFileClip
 
 # Configure Streamlit page settings
 st.set_page_config(
-    page_title="Video Subtitling & Translation Tool",
-    page_icon="🎬",
+    page_title="Video Subtitling & Translation Tool by TRHACKNON",
+    page_icon="😈",
     layout="wide",
     menu_items={
-        'Get Help': 'https://github.com/yourusername/video-subtitle-translator',
-        'Report a bug': "https://github.com/yourusername/video-subtitle-translator/issues",
+        'Get Help': 'https://github.com/tucommenceapousser/vidsubai',
+        'Report a bug': "https://github.com/tucommenceapousser/vidsubai/issues",
         'About': """
         # Video Subtitling and Translation Tool
         
@@ -35,13 +35,33 @@ st.set_page_config(
     }
 )
 
-# Add meta description for SEO
 st.markdown("""
+    <!-- Meta tags pour le SEO -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Generate and translate video subtitles automatically using AI. Support for multiple languages and formats including SRT, VTT, ASS, and SUB.">
     <meta name="keywords" content="video subtitles, translation, AI transcription, OpenAI Whisper, subtitle generator">
-    <meta name="author" content="Your Name">
     <meta name="robots" content="index, follow">
-    """, unsafe_allow_html=True)
+    <meta name="author" content="trhacknon">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+
+    <!-- Open Graph / Facebook meta tags -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://subtool-trkn.replit.app">
+    <meta property="og:title" content="Video Subtitling and Translation Tool by TRHACKNON">
+    <meta property="og:description" content="Automatic video subtitling and translation with OpenAI's Whisper and GPT-4 APIs.">
+    <meta property="og:image" content="https://g.top4top.io/p_3233dut030.jpg">
+
+    <!-- Twitter meta tags -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://subtool-trkn.replit.app">
+    <meta property="twitter:title" content="Video Subtitling and Translation Tool by TRHACKNON">
+    <meta property="twitter:description" content="Automatic video subtitling and translation with OpenAI's AI solutions.">
+    <meta property="twitter:image" content="https://g.top4top.io/p_3233dut030.jpg">
+
+""", unsafe_allow_html=True)
 
 # Initialize services
 openai_service = OpenAIService()
@@ -434,7 +454,7 @@ def display_download_section(video_files):
 def main():
     # Main title with SEO-friendly H1
     st.markdown("""
-        <h1 style='text-align: center;'>Video Subtitling and Translation Tool</h1>
+        <h1 style='text-align: center;'>Video Subtitling and Translation Tool by TRHACKNON</h1>
         <p style='text-align: center; font-size: 1.2em;'>
             Generate accurate subtitles and translations for your videos using AI technology
         </p>
