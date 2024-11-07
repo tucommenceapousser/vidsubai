@@ -18,6 +18,16 @@ subtitle_service = SubtitleService()
 if 'processed_videos' not in st.session_state:
     st.session_state.processed_videos = {}
 
+def create_download_component(key, subtitle_data, file_name, language=None):
+    return st.download_button(
+        label=f"Download {language if language else 'Original'} Subtitles",
+        data=subtitle_data,
+        file_name=file_name,
+        mime="text/plain",
+        key=f"download_{key}",
+        use_container_width=True
+    )
+
 def process_single_video(video_file, target_language, subtitle_format):
     """Process a single video file and return subtitles"""
     temp_dir = None
@@ -74,74 +84,65 @@ def process_single_video(video_file, target_language, subtitle_format):
             media_service.cleanup_temp_files([temp_dir])
 
 def display_download_section(video_files):
-    """Display download buttons for processed videos"""
     if not st.session_state.processed_videos:
         return
 
-    st.subheader("Download Processed Subtitles")
+    st.markdown("### Download Processed Subtitles")
     
     selected_files = []
     
     for video_key, video_data in st.session_state.processed_videos.items():
-        with st.expander(f"Results for {video_key.split('_')[0]}", expanded=True):
-            # Store subtitle data in session state if not already present
-            if f"subtitles_{video_key}" not in st.session_state:
-                st.session_state[f"subtitles_{video_key}"] = {
-                    'original': video_data['original'],
-                    'translated': video_data['translated']
-                }
-            
-            # Create two columns for download buttons
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                download_orig = st.download_button(
-                    label="Download Original Subtitles",
-                    data=st.session_state[f"subtitles_{video_key}"]['original'],
-                    file_name=f"{video_key.split('_')[0]}_original.{video_data['format']}",
-                    mime="text/plain",
-                    key=f"download_orig_{video_key}"
-                )
-            
-            with col2:
-                download_trans = st.download_button(
-                    label=f"Download {video_data['target_language']} Subtitles",
-                    data=st.session_state[f"subtitles_{video_key}"]['translated'],
-                    file_name=f"{video_key.split('_')[0]}_{video_data['target_language']}.{video_data['format']}",
-                    mime="text/plain",
-                    key=f"download_trans_{video_key}"
-                )
-            
-            # Preview toggle using session state
-            if f"show_preview_{video_key}" not in st.session_state:
-                st.session_state[f"show_preview_{video_key}"] = False
-            
-            preview_toggle = st.checkbox(
-                "Show Preview",
-                value=st.session_state[f"show_preview_{video_key}"],
-                key=f"preview_{video_key}"
+        st.markdown(f"#### {video_key.split('_')[0]}")
+        
+        # Use columns for layout
+        col1, col2 = st.columns(2)
+        
+        # Original subtitles download
+        with col1:
+            create_download_component(
+                f"orig_{video_key}",
+                video_data['original'],
+                f"{video_key.split('_')[0]}_original.{video_data['format']}"
             )
-            
-            # Update preview state
-            st.session_state[f"show_preview_{video_key}"] = preview_toggle
-            
-            # Show preview if enabled
-            if preview_toggle:
-                preview_col1, preview_col2 = st.columns(2)
-                with preview_col1:
-                    st.text_area(
-                        "Original subtitles:",
-                        value=st.session_state[f"subtitles_{video_key}"]['original'][:500] + "...",
-                        height=150,
-                        key=f"preview_orig_{video_key}"
-                    )
-                with preview_col2:
-                    st.text_area(
-                        f"{video_data['target_language']} subtitles:",
-                        value=st.session_state[f"subtitles_{video_key}"]['translated'][:500] + "...",
-                        height=150,
-                        key=f"preview_trans_{video_key}"
-                    )
+        
+        # Translated subtitles download
+        with col2:
+            create_download_component(
+                f"trans_{video_key}",
+                video_data['translated'],
+                f"{video_key.split('_')[0]}_{video_data['target_language']}.{video_data['format']}",
+                video_data['target_language']
+            )
+        
+        # Preview section
+        if st.checkbox("Show Preview", key=f"preview_toggle_{video_key}"):
+            pcol1, pcol2 = st.columns(2)
+            with pcol1:
+                st.text_area(
+                    "Original subtitles:",
+                    value=video_data['original'][:500] + "...",
+                    height=150,
+                    key=f"preview_orig_{video_key}"
+                )
+            with pcol2:
+                st.text_area(
+                    f"{video_data['target_language']} subtitles:",
+                    value=video_data['translated'][:500] + "...",
+                    height=150,
+                    key=f"preview_trans_{video_key}"
+                )
+        
+        # Add to selected_files for batch downloading
+        selected_files.append({
+            'filename': f"{video_key.split('_')[0]}_original.{video_data['format']}",
+            'data': video_data['original']
+        })
+        selected_files.append({
+            'filename': f"{video_key.split('_')[0]}_{video_data['target_language']}.{video_data['format']}",
+            'data': video_data['translated']
+        })
+
+        st.divider()
 
     # Add batch download button
     if selected_files:
