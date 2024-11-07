@@ -15,22 +15,34 @@ subtitle_service = SubtitleService()
 def main():
     st.title("Video Subtitling and Translation Tool")
     st.write("Upload a video to generate subtitles and translations")
-    st.info(f"Maximum file size: {MediaService.MAX_FILE_SIZE_MB}MB")
 
-    # File uploader
+    # File size warnings and information
+    st.warning(f"⚠️ File size limit: {MediaService.MAX_FILE_SIZE_MB}MB")
+    st.info("""
+    Tips for handling large videos:
+    - Trim your video to include only the necessary parts
+    - Use a video compression tool before uploading
+    - Consider splitting long videos into smaller segments
+    """)
+
+    # File uploader with completely custom help text
     video_file = st.file_uploader(
         "Choose a video file",
-        type=SUPPORTED_VIDEO_FORMATS
+        type=SUPPORTED_VIDEO_FORMATS,
+        help=f"Upload your video file here (Maximum size: {MediaService.MAX_FILE_SIZE_MB}MB)\nSupported formats: {', '.join(SUPPORTED_VIDEO_FORMATS)}"
     )
 
     if video_file is not None:
-        # Check file size before processing
-        file_size_mb = len(video_file.getbuffer()) / (1024 * 1024)
-        if file_size_mb > MediaService.MAX_FILE_SIZE_MB:
-            st.error(f"File size ({file_size_mb:.1f}MB) exceeds the maximum limit of {MediaService.MAX_FILE_SIZE_MB}MB. Please upload a smaller file or compress your video.")
-            return
-
+        # Initialize temp_dir as None for proper error handling
+        temp_dir = None
         try:
+            # Check file size before processing
+            file_size_mb = len(video_file.getbuffer()) / (1024 * 1024)
+            if file_size_mb > MediaService.MAX_FILE_SIZE_MB:
+                st.error(f"File size ({file_size_mb:.1f}MB) exceeds the maximum limit of {MediaService.MAX_FILE_SIZE_MB}MB.")
+                st.info("Please compress your video or split it into smaller segments before uploading.")
+                return
+
             # Save uploaded file temporarily
             temp_dir = tempfile.mkdtemp()
             temp_video_path = os.path.join(temp_dir, video_file.name)
@@ -43,9 +55,13 @@ def main():
                     audio_path = media_service.extract_audio(temp_video_path)
             except ValueError as e:
                 st.error(str(e))
+                if temp_dir:
+                    media_service.cleanup_temp_files([temp_dir])
                 return
             except Exception as e:
                 st.error(f"Error processing audio: {str(e)}")
+                if temp_dir:
+                    media_service.cleanup_temp_files([temp_dir])
                 return
 
             # Transcription settings
@@ -119,11 +135,12 @@ def main():
                     st.error(f"An error occurred: {str(e)}")
                 finally:
                     # Cleanup
-                    media_service.cleanup_temp_files([temp_dir, audio_path])
+                    if temp_dir:
+                        media_service.cleanup_temp_files([temp_dir, audio_path])
 
         except Exception as e:
             st.error(f"An error occurred while processing the video: {str(e)}")
-            if 'temp_dir' in locals():
+            if temp_dir:
                 media_service.cleanup_temp_files([temp_dir])
 
 if __name__ == "__main__":
