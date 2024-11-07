@@ -309,20 +309,25 @@ def display_download_section(video_files):
                 translated_segments = []
                 if video_data['format'] == 'srt':
                     # Parse translated subtitles back into segments
-                    lines = video_data['translated'].strip().split('\n\n')
-                    for line in lines:
-                        parts = line.split('\n')
-                        if len(parts) >= 3:
-                            times = parts[1].split(' --> ')
-                            if len(times) == 2:
-                                try:
+                    try:
+                        lines = video_data['translated'].strip().split('\n\n')
+                        current_segment = {}
+                        for line in lines:
+                            parts = line.split('\n')
+                            if len(parts) >= 3:  # Valid SRT entry
+                                times = parts[1].split(' --> ')
+                                if len(times) == 2:
+                                    start_time = srt_timestamp_to_seconds(times[0].strip())
+                                    end_time = srt_timestamp_to_seconds(times[1].strip())
+                                    text = '\n'.join(parts[2:])
                                     translated_segments.append({
-                                        'start': srt_timestamp_to_seconds(times[0].strip()),
-                                        'end': srt_timestamp_to_seconds(times[1].strip()),
-                                        'text': '\n'.join(parts[2:])
+                                        'start': start_time,
+                                        'end': end_time,
+                                        'text': text
                                     })
-                                except (ValueError, IndexError):
-                                    continue
+                    except Exception as e:
+                        st.error(f"Error parsing SRT timestamps: {str(e)}")
+                        translated_segments = video_data['segments']
                 else:
                     # For other formats, use the original segment timings
                     translated_segments = video_data['segments']
@@ -372,6 +377,80 @@ def display_download_section(video_files):
 def main():
     st.title("Video Subtitling and Translation Tool")
     
+    # Add custom CSS for modern styling
+    st.markdown('''
+        <style>
+            /* Main container styles */
+            .stApp {
+                background: linear-gradient(145deg, #111111, #1a1a1a);
+            }
+            
+            /* Headers */
+            h1, h2, h3 {
+                color: #00ffbb !important;
+                text-shadow: 0 0 10px rgba(0, 255, 187, 0.3);
+            }
+            
+            /* Buttons */
+            .stButton > button {
+                background-color: transparent;
+                border: 2px solid #00ffbb;
+                color: #00ffbb;
+                border-radius: 5px;
+                transition: all 0.3s ease;
+            }
+            .stButton > button:hover {
+                background-color: #00ffbb;
+                color: #111111;
+                box-shadow: 0 0 15px rgba(0, 255, 187, 0.5);
+            }
+            
+            /* Input fields */
+            .stTextInput > div > div > input,
+            .stNumberInput > div > div > input {
+                border: 2px solid #444;
+                background-color: #2b2b2b;
+                color: white;
+                border-radius: 5px;
+            }
+            .stTextInput > div > div > input:focus,
+            .stNumberInput > div > div > input:focus {
+                border-color: #00ffbb;
+                box-shadow: 0 0 10px rgba(0, 255, 187, 0.3);
+            }
+            
+            /* Expander */
+            .streamlit-expanderHeader {
+                background-color: #2b2b2b;
+                border: 1px solid #444;
+                border-radius: 5px;
+            }
+            .streamlit-expanderHeader:hover {
+                border-color: #00ffbb;
+            }
+            
+            /* File uploader */
+            .stFileUploader > div {
+                background-color: #2b2b2b;
+                border: 2px dashed #444;
+                border-radius: 5px;
+            }
+            .stFileUploader > div:hover {
+                border-color: #00ffbb;
+            }
+            
+            /* Select boxes */
+            .stSelectbox > div > div {
+                background-color: #2b2b2b;
+                border: 2px solid #444;
+                border-radius: 5px;
+            }
+            .stSelectbox > div > div:hover {
+                border-color: #00ffbb;
+            }
+        </style>
+    ''', unsafe_allow_html=True)
+    
     # Clear results button
     col1, col2 = st.columns([1, 5])
     with col1:
@@ -391,7 +470,7 @@ def main():
             st.rerun()
     
     st.write("Upload videos to generate subtitles and translations")
-
+    
     # File size warnings and information
     st.warning(f"⚠️ File size limit: {MediaService.MAX_FILE_SIZE_MB}MB per video")
     st.info("""
