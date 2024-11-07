@@ -3,13 +3,13 @@ import os
 import tempfile
 import io
 import zipfile
+import base64
 from services.openai_service import OpenAIService
 from services.media_service import MediaService
 from services.subtitle_service import SubtitleService
 from services.timing_service import TimingService
 from utils.constants import SUPPORTED_LANGUAGES, SUPPORTED_VIDEO_FORMATS, SUPPORTED_SUBTITLE_FORMATS
 import time
-import base64
 from moviepy.editor import VideoFileClip
 
 # Initialize services
@@ -44,12 +44,15 @@ def srt_timestamp_to_seconds(timestamp):
         return 0.0
 
 def get_video_html(video_path, subtitles_vtt):
-    """Generate HTML for video player with subtitles"""
     video_base64 = ""
     with open(video_path, "rb") as f:
         video_base64 = base64.b64encode(f.read()).decode()
     
-    # Create a blob URL for subtitles using data URI
+    # Ensure VTT content starts with WEBVTT
+    if not subtitles_vtt.startswith('WEBVTT'):
+        subtitles_vtt = 'WEBVTT\n\n' + subtitles_vtt
+    
+    # Create a blob URL for subtitles
     vtt_base64 = base64.b64encode(subtitles_vtt.encode()).decode()
     
     return f'''
@@ -77,15 +80,32 @@ def get_video_html(video_path, subtitles_vtt):
                 }}
             </style>
             <script>
-                document.addEventListener('DOMContentLoaded', function() {{
+                // Function to handle track loading
+                function initializeSubtitles(video) {{
+                    if (!video) return;
+                    
+                    // Force enable the first text track
+                    const track = video.textTracks[0];
+                    if (track) {{
+                        // Disable all tracks first
+                        Array.from(video.textTracks).forEach(t => t.mode = 'disabled');
+                        // Enable our track
+                        track.mode = 'showing';
+                    }}
+                }}
+
+                // Initialize when DOM is loaded
+                document.addEventListener('DOMContentLoaded', () => {{
                     const video = document.getElementById('previewVideo');
                     if (video) {{
-                        video.addEventListener('loadedmetadata', function() {{
-                            const tracks = video.textTracks;
-                            if (tracks.length > 0) {{
-                                tracks[0].mode = 'showing';
-                            }}
-                        }});
+                        // Initialize when metadata is loaded
+                        video.addEventListener('loadedmetadata', () => initializeSubtitles(video));
+                        
+                        // Backup initialization after a short delay
+                        setTimeout(() => initializeSubtitles(video), 1000);
+                        
+                        // Handle track loading
+                        video.addEventListener('addtrack', () => initializeSubtitles(video));
                     }}
                 }});
             </script>
@@ -311,11 +331,12 @@ def display_download_section(video_files):
             
             with pcol2:
                 st.markdown(f"**{video_data['target_language']} Segments:**")
-                translated_segments = []
+                translated_segments = video_data['segments'].copy()  # Use a copy of original segments for timing
                 if video_data['format'] == 'srt':
                     # Parse translated subtitles back into segments with improved error handling
                     try:
                         lines = [line for line in video_data['translated'].strip().split('\n\n') if line.strip()]
+                        translated_segments = []
                         for line in lines:
                             parts = line.strip().split('\n')
                             if len(parts) >= 3:  # Valid SRT entry has index, timestamp, and text
@@ -336,10 +357,6 @@ def display_download_section(video_files):
                     except Exception as e:
                         st.error(f"Error parsing SRT timestamps: {str(e)}")
                         st.info("Using original segment timings as fallback")
-                        translated_segments = video_data['segments']
-                else:
-                    # For other formats, use the original segment timings
-                    translated_segments = video_data['segments']
                 
                 for i, segment in enumerate(translated_segments):
                     st.markdown(f"**{i+1}. [{segment['start']:.1f}s - {segment['end']:.1f}s]**")
