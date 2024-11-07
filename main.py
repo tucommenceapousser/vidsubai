@@ -1,6 +1,8 @@
 import streamlit as st
 import os
 import tempfile
+import io
+import zipfile
 from services.openai_service import OpenAIService
 from services.media_service import MediaService
 from services.subtitle_service import SubtitleService
@@ -78,29 +80,55 @@ def display_download_section(video_files):
 
     st.subheader("Download Processed Subtitles")
     
+    # Add multi-select interface
+    st.write("Select subtitles to download:")
+    selected_files = []
+    
     for video_key, video_data in st.session_state.processed_videos.items():
         with st.container():
             st.write(f"### {video_key.split('_')[0]}")
             col1, col2 = st.columns(2)
             
             with col1:
-                st.download_button(
-                    label="Download Original Subtitles",
-                    data=video_data['original'],
-                    file_name=f"{video_key.split('_')[0]}_original.{video_data['format']}",
-                    mime="text/plain",
-                    key=f"orig_{video_key}"
-                )
+                if st.checkbox(f"Original subtitles - {video_key.split('_')[0]}", key=f"select_orig_{video_key}"):
+                    selected_files.append({
+                        'data': video_data['original'],
+                        'filename': f"{video_key.split('_')[0]}_original.{video_data['format']}"
+                    })
             
             with col2:
-                st.download_button(
-                    label=f"Download {video_data['target_language']} Subtitles",
-                    data=video_data['translated'],
-                    file_name=f"{video_key.split('_')[0]}_{video_data['target_language']}.{video_data['format']}",
-                    mime="text/plain",
-                    key=f"trans_{video_key}"
-                )
+                if st.checkbox(f"{video_data['target_language']} subtitles - {video_key.split('_')[0]}", key=f"select_trans_{video_key}"):
+                    selected_files.append({
+                        'data': video_data['translated'],
+                        'filename': f"{video_key.split('_')[0]}_{video_data['target_language']}.{video_data['format']}"
+                    })
+            
+            # Preview section
+            if st.checkbox("Show preview", key=f"preview_{video_key}"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.text_area("Original subtitles preview:", value=video_data['original'][:500] + "...", height=150)
+                with col2:
+                    st.text_area(f"{video_data['target_language']} subtitles preview:", value=video_data['translated'][:500] + "...", height=150)
+            
             st.divider()
+    
+    # Add batch download button
+    if selected_files:
+        # Create zip file in memory
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for file in selected_files:
+                zip_file.writestr(file['filename'], file['data'])
+        
+        # Download button for zip file
+        st.download_button(
+            label=f"Download {len(selected_files)} selected subtitle files",
+            data=zip_buffer.getvalue(),
+            file_name="subtitles.zip",
+            mime="application/zip",
+            key="batch_download"
+        )
 
 def main():
     st.title("Video Subtitling and Translation Tool")
