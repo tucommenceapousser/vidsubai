@@ -6,7 +6,7 @@
 [![OpenAI](https://img.shields.io/badge/OpenAI-Whisper%20%26%20GPT--4-00A67E.svg)](https://openai.com)
 
 ## Online Demo By TRHACKNON
-[![online demo](https://img.shields.io/badge/Streamlit-1.40.0-FF4B4B.svg)](https://subtool-trkn.replit.app)
+[![online demo](https://img.shields.io/badge/Streamlit-DEMO-FF4B4B.svg)](https://subtool-trkn.replit.app)
 
 A powerful video subtitling and audio translation platform that leverages OpenAI's Whisper and GPT-4 APIs to automatically generate and translate subtitles. This tool supports multiple subtitle formats and languages, making it perfect for content creators and translators.
 
