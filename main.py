@@ -26,19 +26,22 @@ if 'current_segments' not in st.session_state:
 
 def srt_timestamp_to_seconds(timestamp):
     """Convert SRT timestamp to seconds"""
-    # Split hours, minutes, seconds
-    parts = timestamp.split(':')
-    if len(parts) != 3:
+    try:
+        # Split hours, minutes, seconds
+        parts = timestamp.split(':')
+        if len(parts) != 3:
+            return 0.0
+        
+        hours = int(parts[0])
+        minutes = int(parts[1])
+        # Handle seconds and milliseconds
+        seconds_parts = parts[2].replace(',', '.').split('.')
+        seconds = float(seconds_parts[0])
+        milliseconds = float('0.' + seconds_parts[1]) if len(seconds_parts) > 1 else 0
+        
+        return hours * 3600 + minutes * 60 + seconds + milliseconds
+    except (ValueError, IndexError):
         return 0.0
-    
-    hours = int(parts[0])
-    minutes = int(parts[1])
-    # Handle seconds and milliseconds
-    seconds_parts = parts[2].replace(',', '.').split('.')
-    seconds = float(seconds_parts[0])
-    milliseconds = float('0.' + seconds_parts[1]) if len(seconds_parts) > 1 else 0
-    
-    return hours * 3600 + minutes * 60 + seconds + milliseconds
 
 def get_video_html(video_path, subtitles_vtt):
     """Generate HTML for video player with subtitles"""
@@ -49,13 +52,25 @@ def get_video_html(video_path, subtitles_vtt):
     # Create a blob URL for subtitles
     vtt_base64 = base64.b64encode(subtitles_vtt.encode()).decode()
     
-    return f"""
+    return f'''
         <video width="100%" controls>
             <source src="data:video/mp4;base64,{video_base64}" type="video/mp4">
-            <track label="Subtitles" kind="subtitles" srclang="en" src="data:text/vtt;base64,{vtt_base64}" default>
+            <track 
+                label="Subtitles" 
+                kind="subtitles" 
+                srclang="en" 
+                src="data:text/vtt;base64,{vtt_base64}" 
+                default
+            >
             Your browser does not support the video tag.
         </video>
-    """
+        <script>
+            const video = document.querySelector('video');
+            const track = video.querySelector('track');
+            track.mode = 'showing';
+            video.textTracks[0].mode = 'showing';
+        </script>
+    '''
 
 def create_download_component(key, subtitle_data, file_name, language=None):
     return st.download_button(
@@ -219,6 +234,7 @@ def process_single_video(video_file, target_language, subtitle_format):
             media_service.cleanup_temp_files([temp_dir])
 
 def display_download_section(video_files):
+    """Display download section with video preview and subtitle downloads"""
     if not st.session_state.processed_videos:
         return
 
@@ -255,11 +271,8 @@ def display_download_section(video_files):
             # Video preview with subtitles
             if video_data.get('video_path'):
                 st.markdown("##### Video Preview with Subtitles")
-                # Convert SRT to VTT if needed for video preview
-                preview_subtitles = video_data['original']
-                if video_data['format'] == 'srt':
-                    # Convert segments to VTT for preview
-                    preview_subtitles = subtitle_service.create_vtt(video_data['segments'])
+                # Always convert to VTT for video preview
+                preview_subtitles = subtitle_service.create_vtt(video_data['segments'])
                 
                 st.markdown(
                     get_video_html(video_data['video_path'], preview_subtitles),
@@ -287,11 +300,17 @@ def display_download_section(video_files):
                         if len(parts) >= 3:
                             times = parts[1].split(' --> ')
                             if len(times) == 2:
-                                translated_segments.append({
-                                    'start': srt_timestamp_to_seconds(times[0].strip()),
-                                    'end': srt_timestamp_to_seconds(times[1].strip()),
-                                    'text': '\n'.join(parts[2:])
-                                })
+                                try:
+                                    translated_segments.append({
+                                        'start': srt_timestamp_to_seconds(times[0].strip()),
+                                        'end': srt_timestamp_to_seconds(times[1].strip()),
+                                        'text': '\n'.join(parts[2:])
+                                    })
+                                except (ValueError, IndexError):
+                                    continue
+                else:
+                    # For other formats, use the original segment timings
+                    translated_segments = video_data['segments']
                 
                 for i, segment in enumerate(translated_segments):
                     st.markdown(f"**{i+1}. [{segment['start']:.1f}s - {segment['end']:.1f}s]**")
@@ -418,16 +437,16 @@ def main():
                             'original': original_subtitles,
                             'translated': translated_subtitles,
                             'segments': original_segments,
-                            'target_language': target_language,
                             'format': subtitle_format,
+                            'target_language': target_language,
                             'video_path': temp_video_path
                         }
                         
                         progress_bar.progress(1.0)
                         st.success(f"✓ Processing completed")
 
-        # Display download section
-        display_download_section(video_files)
+            # Display download section
+            display_download_section(video_files)
 
 if __name__ == "__main__":
     main()
