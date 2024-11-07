@@ -89,8 +89,6 @@ def display_download_section(video_files):
 
     st.markdown("### Download Processed Subtitles")
     
-    selected_files = []
-    
     for video_key, video_data in st.session_state.processed_videos.items():
         st.markdown(f"#### {video_key.split('_')[0]}")
         
@@ -114,52 +112,62 @@ def display_download_section(video_files):
                 video_data['target_language']
             )
         
-        # Preview section
-        if st.checkbox("Show Preview", key=f"preview_toggle_{video_key}"):
+        # Preview section using expander
+        with st.expander("Show Preview", expanded=False):
             pcol1, pcol2 = st.columns(2)
             with pcol1:
                 st.text_area(
                     "Original subtitles:",
                     value=video_data['original'][:500] + "...",
                     height=150,
-                    key=f"preview_orig_{video_key}"
+                    key=f"preview_orig_{video_key}",
+                    disabled=True
                 )
             with pcol2:
                 st.text_area(
                     f"{video_data['target_language']} subtitles:",
                     value=video_data['translated'][:500] + "...",
                     height=150,
-                    key=f"preview_trans_{video_key}"
+                    key=f"preview_trans_{video_key}",
+                    disabled=True
                 )
         
-        # Add to selected_files for batch downloading
-        selected_files.append({
-            'filename': f"{video_key.split('_')[0]}_original.{video_data['format']}",
-            'data': video_data['original']
-        })
-        selected_files.append({
-            'filename': f"{video_key.split('_')[0]}_{video_data['target_language']}.{video_data['format']}",
-            'data': video_data['translated']
-        })
-
         st.divider()
 
+        # Add to selected_files for batch downloading
+        if 'selected_files' not in st.session_state:
+            st.session_state.selected_files = []
+            
+        st.session_state.selected_files.extend([
+            {
+                'filename': f"{video_key.split('_')[0]}_original.{video_data['format']}",
+                'data': video_data['original']
+            },
+            {
+                'filename': f"{video_key.split('_')[0]}_{video_data['target_language']}.{video_data['format']}",
+                'data': video_data['translated']
+            }
+        ])
+
     # Add batch download button
-    if selected_files:
+    if st.session_state.selected_files:
         # Create zip file in memory
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            for file in selected_files:
+            for file in st.session_state.selected_files:
                 zip_file.writestr(file['filename'], file['data'])
         
         # Download button for zip file
         st.download_button(
-            label=f"Download {len(selected_files)} selected subtitle files",
+            label=f"Download All Subtitle Files",
             data=zip_buffer.getvalue(),
             file_name="subtitles.zip",
             mime="application/zip",
             key="batch_download"
         )
+        
+        # Clear selected files after creating zip
+        st.session_state.selected_files = []
 
 def main():
     st.title("Video Subtitling and Translation Tool")
@@ -169,6 +177,8 @@ def main():
     with col1:
         if st.button("Clear All Results"):
             st.session_state.processed_videos = {}
+            if 'selected_files' in st.session_state:
+                st.session_state.selected_files = []
             st.rerun()
     
     st.write("Upload videos to generate subtitles and translations")
