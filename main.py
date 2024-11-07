@@ -10,7 +10,7 @@ from services.timing_service import TimingService
 from utils.constants import SUPPORTED_LANGUAGES, SUPPORTED_VIDEO_FORMATS, SUPPORTED_SUBTITLE_FORMATS
 import time
 import base64
-from moviepy.editor import VideoFileClip  # Added back missing import
+from moviepy.editor import VideoFileClip
 
 # Initialize services
 openai_service = OpenAIService()
@@ -23,6 +23,22 @@ if 'processed_videos' not in st.session_state:
     st.session_state.processed_videos = {}
 if 'current_segments' not in st.session_state:
     st.session_state.current_segments = {}
+
+def srt_timestamp_to_seconds(timestamp):
+    """Convert SRT timestamp to seconds"""
+    # Split hours, minutes, seconds
+    parts = timestamp.split(':')
+    if len(parts) != 3:
+        return 0.0
+    
+    hours = int(parts[0])
+    minutes = int(parts[1])
+    # Handle seconds and milliseconds
+    seconds_parts = parts[2].replace(',', '.').split('.')
+    seconds = float(seconds_parts[0])
+    milliseconds = float('0.' + seconds_parts[1]) if len(seconds_parts) > 1 else 0
+    
+    return hours * 3600 + minutes * 60 + seconds + milliseconds
 
 def get_video_html(video_path, subtitles_vtt):
     """Generate HTML for video player with subtitles"""
@@ -270,11 +286,12 @@ def display_download_section(video_files):
                         parts = line.split('\n')
                         if len(parts) >= 3:
                             times = parts[1].split(' --> ')
-                            translated_segments.append({
-                                'start': float(times[0].replace(',', '.')),
-                                'end': float(times[1].replace(',', '.')),
-                                'text': '\n'.join(parts[2:])
-                            })
+                            if len(times) == 2:
+                                translated_segments.append({
+                                    'start': srt_timestamp_to_seconds(times[0].strip()),
+                                    'end': srt_timestamp_to_seconds(times[1].strip()),
+                                    'text': '\n'.join(parts[2:])
+                                })
                 
                 for i, segment in enumerate(translated_segments):
                     st.markdown(f"**{i+1}. [{segment['start']:.1f}s - {segment['end']:.1f}s]**")
@@ -408,15 +425,9 @@ def main():
                         
                         progress_bar.progress(1.0)
                         st.success(f"✓ Processing completed")
-                    
-                    st.divider()
-            
-            # Display download section after processing
-            display_download_section(video_files)
-    
-    # Always show download section for previously processed videos
-    elif st.session_state.processed_videos:
-        display_download_section(None)
+
+        # Display download section
+        display_download_section(video_files)
 
 if __name__ == "__main__":
     main()
