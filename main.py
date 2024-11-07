@@ -80,8 +80,7 @@ def main():
                 try:
                     # Transcribe audio
                     with st.spinner("Transcribing audio..."):
-                        transcription = openai_service.transcribe_audio(audio_path)
-                        original_segments = transcription['segments']
+                        original_segments = openai_service.transcribe_audio(audio_path)
                     
                     # Create original language subtitles
                     if subtitle_format == 'srt':
