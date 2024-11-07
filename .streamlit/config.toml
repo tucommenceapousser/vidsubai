@@ -1,11 +1,29 @@
+# Paramètres du serveur
 [server]
-headless = true
-address = "0.0.0.0"
-port = 5000
+headless = true                  # Mode sans interface graphique
+enableCORS = false               # Désactiver CORS si nécessaire
+enableXsrfProtection = true      # Protection contre les attaques CSRF
+address = "0.0.0.0"              # Permet un accès externe
+port = 5000                      # Port de l'application
+fileWatcherType = "auto"         # Redémarre automatiquement en cas de modification de fichiers
+maxUploadSize = 200              # Limite de taille d'upload en Mo
 
+# Thème de l'application
 [theme]
-primaryColor = "#00ffbb"
-backgroundColor = "#111111"
-secondaryBackgroundColor = "#2b2b2b"
-textColor = "#ffffff"
-font = "sans serif"
+primaryColor = "#ff0000"               # Couleur principale
+backgroundColor = "#000000"            # Couleur d'arrière-plan
+secondaryBackgroundColor = "#111111"   # Couleur de fond secondaire
+textColor = "#ffffff"                  # Couleur du texte
+font = "sans serif"                    # Choix de la police
+
+# Mise en cache
+[cache]
+enable = true                   # Activer la mise en cache pour optimiser les performances
+maxEntries = 1000               # Limite des entrées dans le cache
+ttl = 3600                      # Durée de vie des entrées dans le cache (en secondes)
+
+# Paramètres de mise en page et de la barre latérale
+[layout]
+# Configure l’apparence de la page, pour une expérience utilisateur optimisée
+wideMode = true                  # Active le mode large pour la mise en page par défaut
+initial_sidebar_state = "expanded"  # État initial de la barre latérale ("expanded" ou "collapsed")

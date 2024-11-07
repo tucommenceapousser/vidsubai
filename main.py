@@ -486,13 +486,38 @@ def main():
     """)
     
     # Add custom CSS for modern styling
-    st.markdown('''
-        <style>
-            /* Main container styles */
-            .stApp {
-                background: linear-gradient(145deg, #111111, #1a1a1a);
-            }
-            
+
+    st.markdown("""
+    <style>
+        /* Définition de l'image en arrière-plan */
+
+.stApp {
+    background-image: url("https://g.top4top.io/p_3233dut030.jpg");
+    background-size: cover;
+    background-attachment: fixed;
+    background-position: center;
+    color: #ffffff; /* Couleur du texte */
+}
+
+/* Personnalisation de la couleur des widgets */
+.css-1aumxhk, .css-ffhzg2 {
+    color: #ffffff; /* Couleur du texte dans les inputs */
+}
+
+/* Pour assombrir légèrement le fond pour une meilleure lisibilité du texte */
+.stApp::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8); /* Couche sombre sur l'image de fond */
+    z-index: 0; /* Place la couche derrière le contenu */
+}
+
+        /* Division pour l'image en fond */
+
             /* Headers */
             h1, h2, h3 {
                 color: #00ffbb !important;
@@ -557,7 +582,7 @@ def main():
                 border-color: #00ffbb;
             }
         </style>
-    ''', unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
     
     # Clear results button
     col1, col2 = st.columns([1, 5])
