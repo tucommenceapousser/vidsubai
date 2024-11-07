@@ -49,38 +49,43 @@ def get_video_html(video_path, subtitles_vtt):
     with open(video_path, "rb") as f:
         video_base64 = base64.b64encode(f.read()).decode()
     
-    # Create a blob URL for subtitles
+    # Create a blob URL for subtitles using data URI
     vtt_base64 = base64.b64encode(subtitles_vtt.encode()).decode()
     
     return f'''
         <div class="video-container">
-            <video id="previewVideo" width="100%" controls>
+            <video id="previewVideo" width="100%" controls crossorigin="anonymous">
                 <source src="data:video/mp4;base64,{video_base64}" type="video/mp4">
                 <track 
-                    default
+                    label="Subtitles"
                     kind="subtitles" 
                     srclang="en" 
                     src="data:text/vtt;base64,{vtt_base64}"
-                >
-                Your browser does not support the video tag.
+                    default
+                />
             </video>
             <style>
                 .video-container {{
                     position: relative;
                     width: 100%;
+                    margin: 20px 0;
                 }}
                 video::cue {{
-                    background-color: rgba(0,0,0,0.8);
+                    background-color: rgba(0,0,0,0.7);
                     color: white;
-                    font-size: 16px;
+                    font-size: 1.2em;
                 }}
             </style>
             <script>
-                const video = document.getElementById('previewVideo');
-                video.addEventListener('loadedmetadata', function() {{
-                    const track = video.textTracks[0];
-                    if (track) {{
-                        track.mode = 'showing';
+                document.addEventListener('DOMContentLoaded', function() {{
+                    const video = document.getElementById('previewVideo');
+                    if (video) {{
+                        video.addEventListener('loadedmetadata', function() {{
+                            const tracks = video.textTracks;
+                            if (tracks.length > 0) {{
+                                tracks[0].mode = 'showing';
+                            }}
+                        }});
                     }}
                 }});
             </script>
@@ -308,25 +313,29 @@ def display_download_section(video_files):
                 st.markdown(f"**{video_data['target_language']} Segments:**")
                 translated_segments = []
                 if video_data['format'] == 'srt':
-                    # Parse translated subtitles back into segments
+                    # Parse translated subtitles back into segments with improved error handling
                     try:
-                        lines = video_data['translated'].strip().split('\n\n')
-                        current_segment = {}
+                        lines = [line for line in video_data['translated'].strip().split('\n\n') if line.strip()]
                         for line in lines:
-                            parts = line.split('\n')
-                            if len(parts) >= 3:  # Valid SRT entry
-                                times = parts[1].split(' --> ')
-                                if len(times) == 2:
-                                    start_time = srt_timestamp_to_seconds(times[0].strip())
-                                    end_time = srt_timestamp_to_seconds(times[1].strip())
-                                    text = '\n'.join(parts[2:])
-                                    translated_segments.append({
-                                        'start': start_time,
-                                        'end': end_time,
-                                        'text': text
-                                    })
+                            parts = line.strip().split('\n')
+                            if len(parts) >= 3:  # Valid SRT entry has index, timestamp, and text
+                                timestamp_line = parts[1].strip()
+                                if ' --> ' in timestamp_line:
+                                    start_time, end_time = timestamp_line.split(' --> ')
+                                    # Clean and parse timestamps
+                                    start_time = srt_timestamp_to_seconds(start_time.strip())
+                                    end_time = srt_timestamp_to_seconds(end_time.strip())
+                                    if start_time >= 0 and end_time > start_time:  # Valid timestamps
+                                        text = '\n'.join(parts[2:]).strip()
+                                        if text:  # Only add if there's actual text content
+                                            translated_segments.append({
+                                                'start': start_time,
+                                                'end': end_time,
+                                                'text': text
+                                            })
                     except Exception as e:
                         st.error(f"Error parsing SRT timestamps: {str(e)}")
+                        st.info("Using original segment timings as fallback")
                         translated_segments = video_data['segments']
                 else:
                     # For other formats, use the original segment timings
@@ -364,7 +373,7 @@ def display_download_section(video_files):
         
         # Download button for zip file
         st.download_button(
-            label=f"Download All Subtitle Files",
+            label="Download All Subtitle Files",
             data=zip_buffer.getvalue(),
             file_name="subtitles.zip",
             mime="application/zip",
