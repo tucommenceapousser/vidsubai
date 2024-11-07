@@ -18,6 +18,12 @@ if 'download_status' not in st.session_state:
 if 'processed_videos' not in st.session_state:
     st.session_state.processed_videos = {}
 
+def handle_download(video_key, subtitle_type):
+    """Handle download button callback"""
+    if f"{subtitle_type}_{video_key}" not in st.session_state:
+        st.session_state[f"{subtitle_type}_{video_key}"] = True
+    return True
+
 def process_single_video(video_file, target_language, subtitle_format):
     """Process a single video file and return subtitles"""
     temp_dir = None
@@ -85,32 +91,34 @@ def display_download_section(video_files):
             
             # Original subtitles
             with col1:
-                download_key = f"original_{video_key}"
                 if st.download_button(
                     label="Download Original Subtitles",
                     data=video_data['original'],
                     file_name=f"{video_key.split('_')[0]}_original.{video_data['format']}",
                     mime="text/plain",
-                    key=download_key
+                    key=f"original_{video_key}",
+                    on_click=handle_download,
+                    args=(video_key, 'original')
                 ):
-                    st.session_state.download_status[download_key] = True
+                    pass  # Download handled by callback
                 
-                if st.session_state.get(download_key):
+                if st.session_state.get(f"original_{video_key}"):
                     st.success("✓ Original subtitles downloaded")
 
             # Translated subtitles
             with col2:
-                download_key = f"translated_{video_key}"
                 if st.download_button(
                     label=f"Download {video_data['target_language']} Subtitles",
                     data=video_data['translated'],
                     file_name=f"{video_key.split('_')[0]}_{SUPPORTED_LANGUAGES[video_data['target_language']]}.{video_data['format']}",
                     mime="text/plain",
-                    key=download_key
+                    key=f"translated_{video_key}",
+                    on_click=handle_download,
+                    args=(video_key, 'translated')
                 ):
-                    st.session_state.download_status[download_key] = True
+                    pass  # Download handled by callback
                 
-                if st.session_state.get(download_key):
+                if st.session_state.get(f"translated_{video_key}"):
                     st.success(f"✓ {video_data['target_language']} subtitles downloaded")
         
         st.divider()
@@ -124,7 +132,7 @@ def main():
         if st.button("Clear All Results"):
             st.session_state.processed_videos = {}
             st.session_state.download_status = {}
-            st.experimental_rerun()
+            st.rerun()
     
     st.write("Upload videos to generate subtitles and translations")
 
