@@ -242,13 +242,14 @@ def display_download_section(video_files):
             # Subtitle text preview
             pcol1, pcol2 = st.columns(2)
             with pcol1:
-                st.markdown("**Original Subtitles**")
+                st.markdown("**Original Segments:**")
                 for i, segment in enumerate(video_data['segments']):
-                    with st.expander(f"{i+1}. [{segment['start']:.1f}s - {segment['end']:.1f}s]"):
-                        st.write(segment['text'])
+                    st.markdown(f"**{i+1}. [{segment['start']:.1f}s - {segment['end']:.1f}s]**")
+                    st.text(segment['text'])
+                    st.divider()
             
             with pcol2:
-                st.markdown(f"**{video_data['target_language']} Subtitles**")
+                st.markdown(f"**{video_data['target_language']} Segments:**")
                 translated_segments = []
                 if video_data['format'] == 'srt':
                     # Parse translated subtitles back into segments
@@ -264,8 +265,9 @@ def display_download_section(video_files):
                             })
                 
                 for i, segment in enumerate(translated_segments):
-                    with st.expander(f"{i+1}. [{segment['start']:.1f}s - {segment['end']:.1f}s]"):
-                        st.write(segment['text'])
+                    st.markdown(f"**{i+1}. [{segment['start']:.1f}s - {segment['end']:.1f}s]**")
+                    st.text(segment['text'])
+                    st.divider()
         
         st.divider()
 
