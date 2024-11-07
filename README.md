@@ -355,4 +355,4 @@ SOFTWARE.
 </details>
 
 ---
-Made with ❤️ by [trhacknon](https://github.com/tucommenceapousser)
+Dev by 😈 [trhacknon](https://github.com/tucommenceapousser)
