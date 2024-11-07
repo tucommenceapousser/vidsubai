@@ -44,6 +44,7 @@ def srt_timestamp_to_seconds(timestamp):
         return 0.0
 
 def get_video_html(video_path, subtitles_vtt):
+    """Generate HTML for video player with subtitles"""
     video_base64 = ""
     with open(video_path, "rb") as f:
         video_base64 = base64.b64encode(f.read()).decode()
@@ -175,38 +176,6 @@ def display_timing_adjustment(video_key, video_data):
             video_data['original'] = update_subtitles(video_key, adjusted_segments, video_data['format'])
             st.success("Duration scaling applied successfully!")
             st.rerun()
-    
-    # Individual segment adjustment
-    st.markdown("##### Adjust Individual Segments")
-    for i, segment in enumerate(segments):
-        with st.expander(f"Segment {i+1}: {segment['text'][:50]}..."):
-            col1, col2 = st.columns(2)
-            with col1:
-                new_start = st.number_input(
-                    "Start time (seconds)",
-                    value=float(segment['start']),
-                    step=0.1,
-                    key=f"start_{video_key}_{i}"
-                )
-            with col2:
-                new_end = st.number_input(
-                    "End time (seconds)",
-                    value=float(segment['end']),
-                    step=0.1,
-                    key=f"end_{video_key}_{i}"
-                )
-            
-            if st.button("Update Timing", key=f"update_timing_{video_key}_{i}"):
-                adjusted_segments = timing_service.adjust_segment_timing(
-                    segments, i, new_start, new_end
-                )
-                st.session_state.current_segments[video_key] = adjusted_segments
-                
-                # Update subtitles
-                video_data['segments'] = adjusted_segments
-                video_data['original'] = update_subtitles(video_key, adjusted_segments, video_data['format'])
-                st.success(f"Segment {i+1} timing updated successfully!")
-                st.rerun()
 
 def process_single_video(video_file, target_language, subtitle_format):
     """Process a single video file and return subtitles"""
@@ -331,7 +300,9 @@ def display_download_section(video_files):
             
             with pcol2:
                 st.markdown(f"**{video_data['target_language']} Segments:**")
-                translated_segments = video_data['segments'].copy()  # Use a copy of original segments for timing
+                # Initialize translated_segments with a copy of the original segments
+                translated_segments = video_data['segments'].copy()
+                
                 if video_data['format'] == 'srt':
                     # Parse translated subtitles back into segments with improved error handling
                     try:
@@ -358,6 +329,7 @@ def display_download_section(video_files):
                         st.error(f"Error parsing SRT timestamps: {str(e)}")
                         st.info("Using original segment timings as fallback")
                 
+                # Display translated segments
                 for i, segment in enumerate(translated_segments):
                     st.markdown(f"**{i+1}. [{segment['start']:.1f}s - {segment['end']:.1f}s]**")
                     st.text(segment['text'])
@@ -401,6 +373,44 @@ def display_download_section(video_files):
         st.session_state.selected_files = []
 
 def main():
+    # Set page config
+    st.set_page_config(
+        page_title="Video Subtitling and Translation Tool",
+        page_icon="🎬",
+        layout="wide",
+        menu_items={
+            'Get Help': 'https://subtool-trkn.replit.app',
+            'Report a bug': 'https://subtool-trkn.replit.app',
+            'About': 'Created by trhacknon - A powerful video subtitling and translation tool'
+        }
+    )
+
+    # Add metadata tags
+    st.markdown('''
+        <head>
+            <title>Video Subtitling and Translation Tool</title>
+            <meta name="description" content="Process videos, generate transcriptions, and create translations using OpenAI's Whisper and GPT-4 APIs">
+            <meta name="author" content="trhacknon">
+            
+            <!-- Open Graph / Facebook -->
+            <meta property="og:type" content="website">
+            <meta property="og:url" content="https://subtool-trkn.replit.app">
+            <meta property="og:title" content="Video Subtitling and Translation Tool">
+            <meta property="og:description" content="Automatic video subtitling and translation with OpenAI">
+            <meta property="og:image" content="https://subtool-trkn.replit.app/icon.png">
+
+            <!-- Twitter -->
+            <meta property="twitter:card" content="summary_large_image">
+            <meta property="twitter:url" content="https://subtool-trkn.replit.app">
+            <meta property="twitter:title" content="Video Subtitling and Translation Tool">
+            <meta property="twitter:description" content="Automatic video subtitling and translation with OpenAI">
+            <meta property="twitter:image" content="https://subtool-trkn.replit.app/icon.png">
+            
+            <!-- Favicon -->
+            <link rel="shortcut icon" href="https://subtool-trkn.replit.app/favicon.ico">
+        </head>
+    ''', unsafe_allow_html=True)
+    
     st.title("Video Subtitling and Translation Tool")
     
     # Add custom CSS for modern styling
@@ -477,24 +487,6 @@ def main():
         </style>
     ''', unsafe_allow_html=True)
     
-    # Clear results button
-    col1, col2 = st.columns([1, 5])
-    with col1:
-        if st.button("Clear All Results"):
-            # Clean up temporary video files
-            for video_data in st.session_state.processed_videos.values():
-                if video_data.get('video_path'):
-                    try:
-                        os.remove(video_data['video_path'])
-                    except:
-                        pass
-            
-            st.session_state.processed_videos = {}
-            st.session_state.current_segments = {}
-            if 'selected_files' in st.session_state:
-                st.session_state.selected_files = []
-            st.rerun()
-    
     st.write("Upload videos to generate subtitles and translations")
     
     # File size warnings and information
@@ -567,6 +559,13 @@ def main():
 
             # Display download section
             display_download_section(video_files)
+    
+    # Add footer
+    st.markdown('''
+        <div style="position: fixed; bottom: 0; width: 100%; text-align: center; padding: 10px; background: rgba(0,0,0,0.7);">
+            <p style="color: #00ffbb; margin: 0;">Created by trhacknon © 2024</p>
+        </div>
+    ''', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
