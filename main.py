@@ -6,6 +6,7 @@ import zipfile
 from services.openai_service import OpenAIService
 from services.media_service import MediaService
 from services.subtitle_service import SubtitleService
+from services.timing_service import TimingService
 from utils.constants import SUPPORTED_LANGUAGES, SUPPORTED_VIDEO_FORMATS, SUPPORTED_SUBTITLE_FORMATS
 import time
 
@@ -13,10 +14,13 @@ import time
 openai_service = OpenAIService()
 media_service = MediaService()
 subtitle_service = SubtitleService()
+timing_service = TimingService()
 
 # Initialize session states
 if 'processed_videos' not in st.session_state:
     st.session_state.processed_videos = {}
+if 'current_segments' not in st.session_state:
+    st.session_state.current_segments = {}
 
 def create_download_component(key, subtitle_data, file_name, language=None):
     return st.download_button(
@@ -28,6 +32,93 @@ def create_download_component(key, subtitle_data, file_name, language=None):
         use_container_width=True
     )
 
+def update_subtitles(video_key, segments, subtitle_format):
+    """Update subtitles after timing adjustments"""
+    if subtitle_format == 'srt':
+        return subtitle_service.create_srt(segments)
+    return subtitle_service.create_vtt(segments)
+
+def display_timing_adjustment(video_key, video_data):
+    """Display timing adjustment controls for a video"""
+    st.markdown("#### Timing Adjustment")
+    
+    # Get current segments
+    if video_key not in st.session_state.current_segments:
+        # Parse existing subtitles back into segments
+        st.session_state.current_segments[video_key] = video_data.get('segments', [])
+    
+    segments = st.session_state.current_segments[video_key]
+    
+    # Global offset adjustment
+    col1, col2 = st.columns(2)
+    with col1:
+        offset = st.number_input(
+            "Global time offset (seconds)",
+            value=0.0,
+            step=0.1,
+            key=f"offset_{video_key}"
+        )
+        if st.button("Apply Offset", key=f"apply_offset_{video_key}"):
+            adjusted_segments = timing_service.adjust_global_offset(segments, offset)
+            st.session_state.current_segments[video_key] = adjusted_segments
+            
+            # Update subtitles
+            video_data['segments'] = adjusted_segments
+            video_data['original'] = update_subtitles(video_key, adjusted_segments, video_data['format'])
+            st.success("Global offset applied successfully!")
+            st.rerun()
+    
+    with col2:
+        scale = st.number_input(
+            "Duration scale factor",
+            value=1.0,
+            min_value=0.1,
+            max_value=5.0,
+            step=0.1,
+            key=f"scale_{video_key}"
+        )
+        if st.button("Apply Scaling", key=f"apply_scale_{video_key}"):
+            adjusted_segments = timing_service.adjust_duration_scale(segments, scale)
+            st.session_state.current_segments[video_key] = adjusted_segments
+            
+            # Update subtitles
+            video_data['segments'] = adjusted_segments
+            video_data['original'] = update_subtitles(video_key, adjusted_segments, video_data['format'])
+            st.success("Duration scaling applied successfully!")
+            st.rerun()
+    
+    # Individual segment adjustment
+    st.markdown("##### Adjust Individual Segments")
+    for i, segment in enumerate(segments):
+        with st.expander(f"Segment {i+1}: {segment['text'][:50]}..."):
+            col1, col2 = st.columns(2)
+            with col1:
+                new_start = st.number_input(
+                    "Start time (seconds)",
+                    value=float(segment['start']),
+                    step=0.1,
+                    key=f"start_{video_key}_{i}"
+                )
+            with col2:
+                new_end = st.number_input(
+                    "End time (seconds)",
+                    value=float(segment['end']),
+                    step=0.1,
+                    key=f"end_{video_key}_{i}"
+                )
+            
+            if st.button("Update Timing", key=f"update_timing_{video_key}_{i}"):
+                adjusted_segments = timing_service.adjust_segment_timing(
+                    segments, i, new_start, new_end
+                )
+                st.session_state.current_segments[video_key] = adjusted_segments
+                
+                # Update subtitles
+                video_data['segments'] = adjusted_segments
+                video_data['original'] = update_subtitles(video_key, adjusted_segments, video_data['format'])
+                st.success(f"Segment {i+1} timing updated successfully!")
+                st.rerun()
+
 def process_single_video(video_file, target_language, subtitle_format):
     """Process a single video file and return subtitles"""
     temp_dir = None
@@ -35,7 +126,7 @@ def process_single_video(video_file, target_language, subtitle_format):
         # Check file size
         file_size_mb = len(video_file.getbuffer()) / (1024 * 1024)
         if file_size_mb > MediaService.MAX_FILE_SIZE_MB:
-            return None, None, f"File {video_file.name} ({file_size_mb:.1f}MB) exceeds the maximum limit of {MediaService.MAX_FILE_SIZE_MB}MB."
+            return None, None, None, f"File {video_file.name} ({file_size_mb:.1f}MB) exceeds the maximum limit of {MediaService.MAX_FILE_SIZE_MB}MB."
 
         # Save uploaded file temporarily
         temp_dir = tempfile.mkdtemp()
@@ -74,10 +165,10 @@ def process_single_video(video_file, target_language, subtitle_format):
         else:
             translated_subtitles = subtitle_service.create_vtt(translated_segments)
 
-        return original_subtitles, translated_subtitles, None
+        return original_subtitles, translated_subtitles, original_segments, None
 
     except Exception as e:
-        return None, None, str(e)
+        return None, None, None, str(e)
     finally:
         # Cleanup
         if temp_dir:
@@ -91,6 +182,9 @@ def display_download_section(video_files):
     
     for video_key, video_data in st.session_state.processed_videos.items():
         st.markdown(f"#### {video_key.split('_')[0]}")
+        
+        # Add timing adjustment section
+        display_timing_adjustment(video_key, video_data)
         
         # Use columns for layout
         col1, col2 = st.columns(2)
@@ -177,6 +271,7 @@ def main():
     with col1:
         if st.button("Clear All Results"):
             st.session_state.processed_videos = {}
+            st.session_state.current_segments = {}
             if 'selected_files' in st.session_state:
                 st.session_state.selected_files = []
             st.rerun()
@@ -230,7 +325,7 @@ def main():
                         progress_bar = st.progress(0)
                         
                         # Process the video
-                        original_subtitles, translated_subtitles, error = process_single_video(
+                        original_subtitles, translated_subtitles, original_segments, error = process_single_video(
                             video_file, target_language, subtitle_format
                         )
                         
@@ -242,6 +337,7 @@ def main():
                         st.session_state.processed_videos[video_key] = {
                             'original': original_subtitles,
                             'translated': translated_subtitles,
+                            'segments': original_segments,
                             'target_language': target_language,
                             'format': subtitle_format
                         }
