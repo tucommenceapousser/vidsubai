@@ -81,30 +81,42 @@ def display_download_section(video_files):
     st.subheader("Download Processed Subtitles")
     
     # Add multi-select interface
-    st.write("Select subtitles to download:")
     selected_files = []
     
     for video_key, video_data in st.session_state.processed_videos.items():
         with st.container():
             st.write(f"### {video_key.split('_')[0]}")
-            col1, col2 = st.columns(2)
+            
+            # Use three columns for download buttons and preview
+            col1, col2, col3 = st.columns(3)
             
             with col1:
-                if st.checkbox(f"Original subtitles - {video_key.split('_')[0]}", key=f"select_orig_{video_key}"):
-                    selected_files.append({
-                        'data': video_data['original'],
-                        'filename': f"{video_key.split('_')[0]}_original.{video_data['format']}"
-                    })
+                st.download_button(
+                    label="Download Original Subtitles",
+                    data=video_data['original'],
+                    file_name=f"{video_key.split('_')[0]}_original.{video_data['format']}",
+                    mime="text/plain",
+                    key=f"orig_{video_key}"
+                )
             
             with col2:
-                if st.checkbox(f"{video_data['target_language']} subtitles - {video_key.split('_')[0]}", key=f"select_trans_{video_key}"):
-                    selected_files.append({
-                        'data': video_data['translated'],
-                        'filename': f"{video_key.split('_')[0]}_{video_data['target_language']}.{video_data['format']}"
-                    })
+                st.download_button(
+                    label=f"Download {video_data['target_language']} Subtitles",
+                    data=video_data['translated'],
+                    file_name=f"{video_key.split('_')[0]}_{video_data['target_language']}.{video_data['format']}",
+                    mime="text/plain",
+                    key=f"trans_{video_key}"
+                )
             
-            # Preview section
-            if st.checkbox("Show preview", key=f"preview_{video_key}"):
+            with col3:
+                if st.button("Show/Hide Preview", key=f"toggle_{video_key}"):
+                    if f"show_preview_{video_key}" not in st.session_state:
+                        st.session_state[f"show_preview_{video_key}"] = True
+                    else:
+                        st.session_state[f"show_preview_{video_key}"] = not st.session_state[f"show_preview_{video_key}"]
+            
+            # Show preview if enabled
+            if f"show_preview_{video_key}" in st.session_state and st.session_state[f"show_preview_{video_key}"]:
                 col1, col2 = st.columns(2)
                 with col1:
                     st.text_area("Original subtitles preview:", value=video_data['original'][:500] + "...", height=150)
