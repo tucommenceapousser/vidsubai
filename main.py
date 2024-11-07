@@ -53,23 +53,38 @@ def get_video_html(video_path, subtitles_vtt):
     vtt_base64 = base64.b64encode(subtitles_vtt.encode()).decode()
     
     return f'''
-        <video width="100%" controls>
-            <source src="data:video/mp4;base64,{video_base64}" type="video/mp4">
-            <track 
-                label="Subtitles" 
-                kind="subtitles" 
-                srclang="en" 
-                src="data:text/vtt;base64,{vtt_base64}" 
-                default
-            >
-            Your browser does not support the video tag.
-        </video>
-        <script>
-            const video = document.querySelector('video');
-            const track = video.querySelector('track');
-            track.mode = 'showing';
-            video.textTracks[0].mode = 'showing';
-        </script>
+        <div class="video-container">
+            <video id="previewVideo" width="100%" controls>
+                <source src="data:video/mp4;base64,{video_base64}" type="video/mp4">
+                <track 
+                    default
+                    kind="subtitles" 
+                    srclang="en" 
+                    src="data:text/vtt;base64,{vtt_base64}"
+                >
+                Your browser does not support the video tag.
+            </video>
+            <style>
+                .video-container {{
+                    position: relative;
+                    width: 100%;
+                }}
+                video::cue {{
+                    background-color: rgba(0,0,0,0.8);
+                    color: white;
+                    font-size: 16px;
+                }}
+            </style>
+            <script>
+                const video = document.getElementById('previewVideo');
+                video.addEventListener('loadedmetadata', function() {{
+                    const track = video.textTracks[0];
+                    if (track) {{
+                        track.mode = 'showing';
+                    }}
+                }});
+            </script>
+        </div>
     '''
 
 def create_download_component(key, subtitle_data, file_name, language=None):
