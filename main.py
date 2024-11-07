@@ -9,6 +9,7 @@ from services.subtitle_service import SubtitleService
 from services.timing_service import TimingService
 from utils.constants import SUPPORTED_LANGUAGES, SUPPORTED_VIDEO_FORMATS, SUPPORTED_SUBTITLE_FORMATS
 import time
+import base64
 
 # Initialize services
 openai_service = OpenAIService()
@@ -21,6 +22,23 @@ if 'processed_videos' not in st.session_state:
     st.session_state.processed_videos = {}
 if 'current_segments' not in st.session_state:
     st.session_state.current_segments = {}
+
+def get_video_html(video_path, subtitles_vtt):
+    """Generate HTML for video player with subtitles"""
+    video_base64 = ""
+    with open(video_path, "rb") as f:
+        video_base64 = base64.b64encode(f.read()).decode()
+    
+    # Create a blob URL for subtitles
+    vtt_base64 = base64.b64encode(subtitles_vtt.encode()).decode()
+    
+    return f"""
+        <video width="100%" controls>
+            <source src="data:video/mp4;base64,{video_base64}" type="video/mp4">
+            <track label="Subtitles" kind="subtitles" srclang="en" src="data:text/vtt;base64,{vtt_base64}" default>
+            Your browser does not support the video tag.
+        </video>
+    """
 
 def create_download_component(key, subtitle_data, file_name, language=None):
     return st.download_button(
@@ -44,7 +62,6 @@ def display_timing_adjustment(video_key, video_data):
     
     # Get current segments
     if video_key not in st.session_state.current_segments:
-        # Parse existing subtitles back into segments
         st.session_state.current_segments[video_key] = video_data.get('segments', [])
     
     segments = st.session_state.current_segments[video_key]
@@ -126,7 +143,7 @@ def process_single_video(video_file, target_language, subtitle_format):
         # Check file size
         file_size_mb = len(video_file.getbuffer()) / (1024 * 1024)
         if file_size_mb > MediaService.MAX_FILE_SIZE_MB:
-            return None, None, None, f"File {video_file.name} ({file_size_mb:.1f}MB) exceeds the maximum limit of {MediaService.MAX_FILE_SIZE_MB}MB."
+            return None, None, None, None, f"File {video_file.name} ({file_size_mb:.1f}MB) exceeds the maximum limit of {MediaService.MAX_FILE_SIZE_MB}MB."
 
         # Save uploaded file temporarily
         temp_dir = tempfile.mkdtemp()
@@ -165,13 +182,12 @@ def process_single_video(video_file, target_language, subtitle_format):
         else:
             translated_subtitles = subtitle_service.create_vtt(translated_segments)
 
-        return original_subtitles, translated_subtitles, original_segments, None
+        return original_subtitles, translated_subtitles, original_segments, temp_video_path, None
 
     except Exception as e:
-        return None, None, None, str(e)
+        return None, None, None, None, str(e)
     finally:
-        # Cleanup
-        if temp_dir:
+        if temp_dir and 'temp_video_path' not in locals():
             media_service.cleanup_temp_files([temp_dir])
 
 def display_download_section(video_files):
@@ -208,23 +224,48 @@ def display_download_section(video_files):
         
         # Preview section using expander
         with st.expander("Show Preview", expanded=False):
+            # Video preview with subtitles
+            if video_data.get('video_path'):
+                st.markdown("##### Video Preview with Subtitles")
+                # Convert SRT to VTT if needed for video preview
+                preview_subtitles = video_data['original']
+                if video_data['format'] == 'srt':
+                    # Convert segments to VTT for preview
+                    preview_subtitles = subtitle_service.create_vtt(video_data['segments'])
+                
+                st.markdown(
+                    get_video_html(video_data['video_path'], preview_subtitles),
+                    unsafe_allow_html=True
+                )
+            
+            st.markdown("##### Text Preview")
+            # Subtitle text preview
             pcol1, pcol2 = st.columns(2)
             with pcol1:
-                st.text_area(
-                    "Original subtitles:",
-                    value=video_data['original'][:500] + "...",
-                    height=150,
-                    key=f"preview_orig_{video_key}",
-                    disabled=True
-                )
+                st.markdown("**Original Subtitles**")
+                for i, segment in enumerate(video_data['segments']):
+                    with st.expander(f"{i+1}. [{segment['start']:.1f}s - {segment['end']:.1f}s]"):
+                        st.write(segment['text'])
+            
             with pcol2:
-                st.text_area(
-                    f"{video_data['target_language']} subtitles:",
-                    value=video_data['translated'][:500] + "...",
-                    height=150,
-                    key=f"preview_trans_{video_key}",
-                    disabled=True
-                )
+                st.markdown(f"**{video_data['target_language']} Subtitles**")
+                translated_segments = []
+                if video_data['format'] == 'srt':
+                    # Parse translated subtitles back into segments
+                    lines = video_data['translated'].strip().split('\n\n')
+                    for line in lines:
+                        parts = line.split('\n')
+                        if len(parts) >= 3:
+                            times = parts[1].split(' --> ')
+                            translated_segments.append({
+                                'start': float(times[0].replace(',', '.')),
+                                'end': float(times[1].replace(',', '.')),
+                                'text': '\n'.join(parts[2:])
+                            })
+                
+                for i, segment in enumerate(translated_segments):
+                    with st.expander(f"{i+1}. [{segment['start']:.1f}s - {segment['end']:.1f}s]"):
+                        st.write(segment['text'])
         
         st.divider()
 
@@ -270,6 +311,14 @@ def main():
     col1, col2 = st.columns([1, 5])
     with col1:
         if st.button("Clear All Results"):
+            # Clean up temporary video files
+            for video_data in st.session_state.processed_videos.values():
+                if video_data.get('video_path'):
+                    try:
+                        os.remove(video_data['video_path'])
+                    except:
+                        pass
+            
             st.session_state.processed_videos = {}
             st.session_state.current_segments = {}
             if 'selected_files' in st.session_state:
@@ -325,7 +374,7 @@ def main():
                         progress_bar = st.progress(0)
                         
                         # Process the video
-                        original_subtitles, translated_subtitles, original_segments, error = process_single_video(
+                        original_subtitles, translated_subtitles, original_segments, temp_video_path, error = process_single_video(
                             video_file, target_language, subtitle_format
                         )
                         
@@ -339,7 +388,8 @@ def main():
                             'translated': translated_subtitles,
                             'segments': original_segments,
                             'target_language': target_language,
-                            'format': subtitle_format
+                            'format': subtitle_format,
+                            'video_path': temp_video_path
                         }
                         
                         progress_bar.progress(1.0)
