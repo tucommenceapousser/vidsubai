@@ -44,66 +44,34 @@ def srt_timestamp_to_seconds(timestamp):
         return 0.0
 
 def get_video_html(video_path, subtitles_vtt):
-    """Generate HTML for video player with subtitles"""
     video_base64 = ""
     with open(video_path, "rb") as f:
         video_base64 = base64.b64encode(f.read()).decode()
-    
-    # Ensure VTT content starts with WEBVTT
-    if not subtitles_vtt.startswith('WEBVTT'):
-        subtitles_vtt = 'WEBVTT\n\n' + subtitles_vtt
     
     # Create a blob URL for subtitles
     vtt_base64 = base64.b64encode(subtitles_vtt.encode()).decode()
     
     return f'''
-        <div class="video-container">
-            <video id="previewVideo" width="100%" controls crossorigin="anonymous">
-                <source src="data:video/mp4;base64,{video_base64}" type="video/mp4">
-                <track 
-                    label="Subtitles"
-                    kind="subtitles" 
-                    srclang="en" 
-                    src="data:text/vtt;base64,{vtt_base64}"
-                    default
-                />
-            </video>
-            <style>
-                .video-container {{
-                    position: relative;
-                    width: 100%;
-                    margin: 20px 0;
-                }}
-                video::cue {{
-                    background-color: rgba(0,0,0,0.7);
-                    color: white;
-                    font-size: 1.2em;
-                }}
-            </style>
-            <script>
-                function initializeSubtitles(video) {{
-                    if (!video) return;
-                    const track = video.textTracks[0];
-                    if (track) {{
-                        Array.from(video.textTracks).forEach(t => t.mode = 'disabled');
-                        track.mode = 'showing';
-                    }}
-                }}
-
-                document.addEventListener('DOMContentLoaded', () => {{
-                    const video = document.getElementById('previewVideo');
-                    if (video) {{
-                        video.addEventListener('loadedmetadata', () => initializeSubtitles(video));
-                        setTimeout(() => initializeSubtitles(video), 1000);
-                        video.addEventListener('addtrack', () => initializeSubtitles(video));
-                    }}
-                }});
-            </script>
-        </div>
+        <video width="100%" controls>
+            <source src="data:video/mp4;base64,{video_base64}" type="video/mp4">
+            <track 
+                label="Subtitles" 
+                kind="subtitles" 
+                srclang="en" 
+                src="data:text/vtt;base64,{vtt_base64}" 
+                default
+            >
+            Your browser does not support the video tag.
+        </video>
+        <script>
+            const video = document.querySelector('video');
+            const track = video.querySelector('track');
+            track.mode = 'showing';
+            video.textTracks[0].mode = 'showing';
+        </script>
     '''
 
 def create_download_component(key, subtitle_data, file_name, language=None):
-    """Create a download button for subtitles"""
     return st.download_button(
         label=f"Download {language if language else 'Original'} Subtitles",
         data=subtitle_data,
@@ -243,6 +211,7 @@ def display_download_section(video_files):
                                 timestamp_line = parts[1].strip()
                                 if ' --> ' in timestamp_line:
                                     start_time, end_time = timestamp_line.split(' --> ')
+                                    # Parse timestamps with improved error handling
                                     start_time = srt_timestamp_to_seconds(start_time.strip())
                                     end_time = srt_timestamp_to_seconds(end_time.strip())
                                     if start_time >= 0 and end_time > start_time:
@@ -277,19 +246,13 @@ def main():
 
     # Add SEO and social meta tags using components.html
     st.components.v1.html('''
-        <title>Video Subtitling and Translation Tool</title>
         <meta name="description" content="Process videos, generate transcriptions, and create translations using OpenAI's Whisper and GPT-4 APIs">
         <meta name="author" content="trhacknon">
-        <link rel="icon" type="image/x-icon" href="https://subtool-trkn.replit.app/favicon.ico">
-        
-        <!-- Open Graph / Facebook -->
         <meta property="og:type" content="website">
         <meta property="og:url" content="https://subtool-trkn.replit.app">
         <meta property="og:title" content="Video Subtitling and Translation Tool">
         <meta property="og:description" content="Automatic video subtitling and translation with OpenAI">
         <meta property="og:image" content="https://subtool-trkn.replit.app/icon.png">
-
-        <!-- Twitter -->
         <meta property="twitter:card" content="summary_large_image">
         <meta property="twitter:url" content="https://subtool-trkn.replit.app">
         <meta property="twitter:title" content="Video Subtitling and Translation Tool">
@@ -299,34 +262,9 @@ def main():
 
     st.title("Video Subtitling and Translation Tool")
     
-    # Add custom CSS for modern styling
-    st.markdown('''
-        <style>
-            .stApp {
-                max-width: 1200px;
-                margin: 0 auto;
-            }
-            .stButton>button {
-                width: 100%;
-            }
-            .video-container {
-                margin: 20px 0;
-                border-radius: 10px;
-                overflow: hidden;
-            }
-            .streamlit-expanderHeader {
-                font-size: 1.1em;
-                font-weight: 600;
-            }
-            .stMarkdown {
-                font-size: 1.1em;
-            }
-        </style>
-    ''', unsafe_allow_html=True)
-
     st.write("Upload videos to generate subtitles and translations")
     
-    # File uploader
+    # File uploader for video files
     video_files = st.file_uploader(
         "Choose video files",
         type=SUPPORTED_VIDEO_FORMATS,
