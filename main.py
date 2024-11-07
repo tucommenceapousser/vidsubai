@@ -12,9 +12,11 @@ openai_service = OpenAIService()
 media_service = MediaService()
 subtitle_service = SubtitleService()
 
-# Initialize session state for download tracking
+# Initialize session states
 if 'download_status' not in st.session_state:
     st.session_state.download_status = {}
+if 'processed_videos' not in st.session_state:
+    st.session_state.processed_videos = {}
 
 def process_single_video(video_file, target_language, subtitle_format):
     """Process a single video file and return subtitles"""
@@ -71,8 +73,59 @@ def process_single_video(video_file, target_language, subtitle_format):
         if temp_dir:
             media_service.cleanup_temp_files([temp_dir])
 
+def display_download_section(video_files):
+    """Display download buttons for processed videos"""
+    if not st.session_state.processed_videos:
+        return
+
+    st.subheader("Download Processed Subtitles")
+    for video_key, video_data in st.session_state.processed_videos.items():
+        with st.expander(f"Download options for {video_key.split('_')[0]}", expanded=True):
+            col1, col2 = st.columns(2)
+            
+            # Original subtitles
+            with col1:
+                download_key = f"original_{video_key}"
+                if st.download_button(
+                    label="Download Original Subtitles",
+                    data=video_data['original'],
+                    file_name=f"{video_key.split('_')[0]}_original.{video_data['format']}",
+                    mime="text/plain",
+                    key=download_key
+                ):
+                    st.session_state.download_status[download_key] = True
+                
+                if st.session_state.get(download_key):
+                    st.success("✓ Original subtitles downloaded")
+
+            # Translated subtitles
+            with col2:
+                download_key = f"translated_{video_key}"
+                if st.download_button(
+                    label=f"Download {video_data['target_language']} Subtitles",
+                    data=video_data['translated'],
+                    file_name=f"{video_key.split('_')[0]}_{SUPPORTED_LANGUAGES[video_data['target_language']]}.{video_data['format']}",
+                    mime="text/plain",
+                    key=download_key
+                ):
+                    st.session_state.download_status[download_key] = True
+                
+                if st.session_state.get(download_key):
+                    st.success(f"✓ {video_data['target_language']} subtitles downloaded")
+        
+        st.divider()
+
 def main():
     st.title("Video Subtitling and Translation Tool")
+    
+    # Clear results button
+    col1, col2 = st.columns([1, 5])
+    with col1:
+        if st.button("Clear All Results"):
+            st.session_state.processed_videos = {}
+            st.session_state.download_status = {}
+            st.experimental_rerun()
+    
     st.write("Upload videos to generate subtitles and translations")
 
     # File size warnings and information
@@ -130,46 +183,25 @@ def main():
                             st.error(f"Error processing {video_file.name}: {error}")
                             continue
                         
-                        # Create columns for download buttons
-                        col1, col2 = st.columns(2)
-                        
-                        # Original subtitles
-                        with col1:
-                            download_key = f"original_{video_key}"
-                            if st.download_button(
-                                label="Download Original Subtitles",
-                                data=original_subtitles,
-                                file_name=f"{os.path.splitext(video_file.name)[0]}_original.{subtitle_format}",
-                                mime="text/plain",
-                                key=download_key,
-                                on_click=lambda: st.session_state.update({download_key: True})
-                            ):
-                                st.session_state.download_status[download_key] = True
-                                
-                            if st.session_state.get(download_key):
-                                st.success("✓ Original subtitles downloaded")
-
-                        # Translated subtitles
-                        with col2:
-                            download_key = f"translated_{video_key}"
-                            if st.download_button(
-                                label=f"Download {target_language} Subtitles",
-                                data=translated_subtitles,
-                                file_name=f"{os.path.splitext(video_file.name)[0]}_{SUPPORTED_LANGUAGES[target_language]}.{subtitle_format}",
-                                mime="text/plain",
-                                key=download_key,
-                                on_click=lambda: st.session_state.update({download_key: True})
-                            ):
-                                st.session_state.download_status[download_key] = True
-                                
-                            if st.session_state.get(download_key):
-                                st.success(f"✓ {target_language} subtitles downloaded")
+                        # Store results in session state
+                        st.session_state.processed_videos[video_key] = {
+                            'original': original_subtitles,
+                            'translated': translated_subtitles,
+                            'target_language': target_language,
+                            'format': subtitle_format
+                        }
                         
                         progress_bar.progress(1.0)
                         st.success(f"✓ Processing completed")
                     
-                    # Add a divider between videos
                     st.divider()
+            
+            # Display download section after processing
+            display_download_section(video_files)
+    
+    # Always show download section for previously processed videos
+    elif st.session_state.processed_videos:
+        display_download_section(None)
 
 if __name__ == "__main__":
     main()
