@@ -10,6 +10,7 @@ from services.timing_service import TimingService
 from utils.constants import SUPPORTED_LANGUAGES, SUPPORTED_VIDEO_FORMATS, SUPPORTED_SUBTITLE_FORMATS
 import time
 import base64
+from moviepy.editor import VideoFileClip  # Added back missing import
 
 # Initialize services
 openai_service = OpenAIService()
@@ -154,14 +155,24 @@ def process_single_video(video_file, target_language, subtitle_format):
         # Extract audio
         audio_path = media_service.extract_audio(temp_video_path)
 
+        # Get video FPS for SUB format
+        video_fps = 23.976  # Default FPS
+        if subtitle_format == 'sub':
+            try:
+                with VideoFileClip(temp_video_path) as video:
+                    video_fps = video.fps
+            except:
+                pass
+
         # Transcribe audio
         original_segments = openai_service.transcribe_audio(audio_path)
         
         # Create original language subtitles
-        if subtitle_format == 'srt':
-            original_subtitles = subtitle_service.create_srt(original_segments)
-        else:
-            original_subtitles = subtitle_service.create_vtt(original_segments)
+        original_subtitles = subtitle_service.create_subtitles(
+            original_segments,
+            subtitle_format,
+            fps=video_fps
+        )
 
         # Translate subtitles
         translated_segments = []
@@ -177,10 +188,11 @@ def process_single_video(video_file, target_language, subtitle_format):
             })
 
         # Create translated subtitles
-        if subtitle_format == 'srt':
-            translated_subtitles = subtitle_service.create_srt(translated_segments)
-        else:
-            translated_subtitles = subtitle_service.create_vtt(translated_segments)
+        translated_subtitles = subtitle_service.create_subtitles(
+            translated_segments,
+            subtitle_format,
+            fps=video_fps
+        )
 
         return original_subtitles, translated_subtitles, original_segments, temp_video_path, None
 
