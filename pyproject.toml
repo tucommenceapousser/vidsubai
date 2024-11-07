@@ -1,0 +1,10 @@
+[project]
+name = "repl-nix-videosubtitlesandtranslationtool"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.11"
+dependencies = [
+    "moviepy>=1.0.3",
+    "openai>=1.54.3",
+    "streamlit>=1.40.0",
+]
